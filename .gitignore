@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.tgz
+AGENTS.local.md
+CLAUDE.local.md

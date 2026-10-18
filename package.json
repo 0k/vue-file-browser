@@ -1,0 +1,37 @@
+{
+  "name": "@0k/vue-file-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Host-fed Vue 3 folder browser in the style of GNOME Files",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "files": ["dist", "README.org", "LICENSE"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {"types": "./dist/index.d.ts", "default": "./dist/index.js"},
+    "./style.css": "./dist/style.css"
+  },
+  "scripts": {
+    "test": "vitest run --bail 1",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/finish-build.mjs",
+    "check:chrome91": "node scripts/check-chrome91.mjs",
+    "check": "npm run test && npm run typecheck && npm run build && npm run check:chrome91",
+    "pack": "node scripts/pack.mjs"
+  },
+  "peerDependencies": {"vue": "^3.5.0"},
+  "devDependencies": {
+    "@types/node": "22.10.5",
+    "@vitejs/plugin-vue": "5.2.1",
+    "@vue/test-utils": "2.4.6",
+    "jsdom": "25.0.1",
+    "typescript": "5.7.3",
+    "vite": "5.4.21",
+    "vitest": "2.1.9",
+    "vue": "3.5.44",
+    "vue-tsc": "2.2.0"
+  }
+}

@@ -1,0 +1,108 @@
+#+TITLE: @0k/vue-file-browser
+
+* Purpose and delivery
+
+A reusable Vue 3 folder browser with the look of GNOME Files' list view: a
+header bar with an Up button, a clickable path bar, a hidden-files toggle
+and Reload, then one row per entry with its icon, name, size and
+modification date. It fills whatever box the host gives it, from a full
+page to a fixed-height panel.
+
+The package owns sorting, formatting, rendering, loading states and
+selection. Hosts own fetching, authorisation, routing and history: they
+supply a ~load(path)~ function and turn the ~open-folder~ / ~open-file~
+events into navigation. MIT licensed; Vue ~^3.5.0~ is a peer; there are no
+runtime dependencies.
+
+Run ~npm install~, ~npm run check~, then ~npm run pack~. The last command
+builds and produces ~artifacts/0k-vue-file-browser-0.1.0.tgz~ without
+publishing. A consumer copies that artifact into its ~frontend/vendor/~ and
+installs it as ~file:vendor/0k-vue-file-browser-0.1.0.tgz~ with its normal
+npm workflow. This project never edits or vendors into consumer
+repositories.
+
+#+begin_src typescript
+import { FileBrowser } from '@0k/vue-file-browser';
+import '@0k/vue-file-browser/style.css';
+#+end_src
+
+#+begin_src vue
+<FileBrowser :path="folder" :load="loadFolder" :select="fileName"
+  :home="homeDir" v-model:show-hidden="showHidden"
+  @open-folder="(path) => router.push({ query: { path } })"
+  @open-file="(path, entry) => openFile(path, entry)" />
+#+end_src
+
+* Exact exports
+
+#+begin_src typescript
+type FolderEntryKind = 'file' | 'dir' | 'other';
+interface FolderEntry {
+  name: string;
+  kind: FolderEntryKind;      // after following symlinks
+  symlink: boolean;
+  size: number | null;        // bytes, files only
+  modified: number | null;    // Unix seconds
+  mime: string | null;
+}
+interface FolderListing {
+  path: string;               // absolute
+  parent: string | null;      // null at the root
+  entries: FolderEntry[];
+  truncated: boolean;
+}
+type FolderLoader = (path: string) => Promise<FolderListing>;
+interface PathSegment { label: string; path: string }
+
+function sortEntries(entries: FolderEntry[]): FolderEntry[];
+function formatSize(bytes: number): string;
+function formatModified(seconds: number, now?: Date): string;
+function joinPath(dir: string, name: string): string;
+function pathSegments(path: string, home?: string | null): PathSegment[];
+const FileBrowser: Component;
+#+end_src
+
+~sortEntries~ puts folders first, then sorts by name in natural,
+case-insensitive order (~b2~ before ~b10~), breaking ties on the raw name.
+~formatSize~ uses decimal units like GNOME: ~1 byte~, ~512 bytes~,
+~4.1 kB~, ~12.3 MB~. ~formatModified~ gives the time for today,
+~Yesterday~, ~12 Oct~ within the year and ~12 Oct 2024~ otherwise.
+~pathSegments~ starts with a ~~~ segment for a path at or under ~home~,
+else with ~/~.
+
+* Component
+
+#+begin_src typescript
+{
+  path: string;               // absolute folder to show
+  load: FolderLoader;
+  select?: string | null;     // entry name to highlight and scroll to
+  home?: string | null;       // collapsed into the first path-bar segment
+  homeLabel?: string;         // default '~'
+  showHidden?: boolean;       // default false, v-model:showHidden
+}
+// emits
+'open-folder': [path: string]
+'open-file': [path: string, entry: FolderEntry]
+'update:showHidden': [value: boolean]
+#+end_src
+
+~load~ runs on mount, whenever ~path~ changes, and on Reload or Retry; a
+result is ignored when a newer load started or the component unmounted.
+A rejected load shows the error's message verbatim with a Retry button.
+Entries whose name starts with a dot are hidden unless ~showHidden~; a
+folder holding only hidden entries offers a Show hidden files button that
+emits ~update:showHidden~; the host must update ~showHidden~ to reveal them.
+Clicking a folder, an ancestor in the path bar, or Up emits ~open-folder~;
+clicking any other entry emits ~open-file~ with its absolute path. The
+component keeps no history. Below 448 px of width the Size and Modified
+columns are dropped.
+
+* Styling
+
+Every rule hangs from ~.vfb-root~. Override these variables on it (defaults
+follow the libadwaita dark palette): ~--vfb-bg~, ~--vfb-header-bg~,
+~--vfb-fg~, ~--vfb-dim-fg~, ~--vfb-border~, ~--vfb-hover-bg~,
+~--vfb-accent~, ~--vfb-accent-fg~, ~--vfb-selected-bg~,
+~--vfb-folder-icon~, ~--vfb-file-icon~, ~--vfb-error-fg~, ~--vfb-radius~,
+~--vfb-row-height~, ~--vfb-font-size~.
