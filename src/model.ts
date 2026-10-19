@@ -47,7 +47,7 @@ export type FolderFeed = (path: string, sink: FolderFeedSink) => () => void;
 
 /** Pixel widths of the resizable columns; Name takes the remaining space. */
 export interface FolderColumnWidths { size: number; modified: number }
-export const DEFAULT_COLUMN_WIDTHS: Readonly<FolderColumnWidths> = Object.freeze({ size: 88, modified: 112 });
+export const DEFAULT_COLUMN_WIDTHS: Readonly<FolderColumnWidths> = Object.freeze({ size: 96, modified: 136 });
 export const MIN_COLUMN_WIDTHS: Readonly<FolderColumnWidths> = Object.freeze({ size: 56, modified: 72 });
 export const MAX_COLUMN_WIDTH = 480;
 
@@ -80,27 +80,50 @@ export function sortEntries(entries: FolderEntry[], sort: FolderSort = DEFAULT_S
 
 const SIZE_UNITS = ["kB", "MB", "GB", "TB", "PB"];
 
-/** GNOME Files style sizes: decimal (SI) units, one decimal. */
-export function formatSize(bytes: number): string {
-  if (bytes < 1000) return bytes === 1 ? "1 byte" : `${bytes} bytes`;
+/** A size split for column alignment: `305` `` `bytes`, `1` `.4` `kB`. */
+export interface SizeParts { whole: string; fraction: string; unit: string }
+
+/** GNOME Files style sizes: decimal (SI) units, one decimal above 1000 bytes. */
+export function sizeParts(bytes: number): SizeParts {
+  if (bytes < 1000) return { whole: String(bytes), fraction: "", unit: bytes === 1 ? "byte" : "bytes" };
   let value = bytes / 1000;
   let unit = 0;
   while (value >= 999.95 && unit < SIZE_UNITS.length - 1) { value /= 1000; unit += 1; }
-  return `${value.toFixed(1)} ${SIZE_UNITS[unit]}`;
+  const [whole, decimals] = value.toFixed(1).split(".");
+  return { whole: whole!, fraction: `.${decimals}`, unit: SIZE_UNITS[unit]! };
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export function formatSize(bytes: number): string {
+  const p = sizeParts(bytes);
+  return `${p.whole}${p.fraction} ${p.unit}`;
+}
+
+/** The month abbreviations dates use, exported so hosts can size the month slot. */
+export const MONTHS = Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const);
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/**
+ * A date split for column alignment.  The two forms never align with each
+ * other; within a form every part has a fixed slot.
+ */
+export type ModifiedParts =
+  | { form: "relative"; word: "Today" | "Yesterday"; time: string }
+  | { form: "date"; day: string; month: string; year: string };
+
 /** GNOME Files style dates: "Today 14:32", "Yesterday 09:05", otherwise "12 Oct 2026". */
-export function formatModified(seconds: number, now: Date = new Date()): string {
+export function modifiedParts(seconds: number, now: Date = new Date()): ModifiedParts {
   const d = new Date(seconds * 1000);
   const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (sameDay(d, now)) return `Today ${time}`;
+  if (sameDay(d, now)) return { form: "relative", word: "Today", time };
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (sameDay(d, yesterday)) return `Yesterday ${time}`;
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  if (sameDay(d, yesterday)) return { form: "relative", word: "Yesterday", time };
+  return { form: "date", day: String(d.getDate()), month: MONTHS[d.getMonth()]!, year: String(d.getFullYear()) };
+}
+
+export function formatModified(seconds: number, now: Date = new Date()): string {
+  const p = modifiedParts(seconds, now);
+  return p.form === "relative" ? `${p.word} ${p.time}` : `${p.day} ${p.month} ${p.year}`;
 }
 
 export function joinPath(dir: string, name: string): string {

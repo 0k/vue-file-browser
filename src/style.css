@@ -11,12 +11,12 @@
   --vfb-folder-icon: #62a0ea;
   --vfb-file-icon: rgba(255, 255, 255, 0.75);
   --vfb-error-fg: #ff7b63;
-  --vfb-font-family: "Ubuntu Sans Mono", "Ubuntu Mono", monospace;
-  --vfb-font-size: 12.5px;
+  --vfb-font-family: "Noto Sans", Cantarell, sans-serif;
+  --vfb-font-size: 13px;
   --vfb-row-height: 24px;
   --vfb-gutter: 8px;
   --vfb-row-inset: 6px;
-  --vfb-column-gap: 16px;
+  position: relative;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -189,10 +189,43 @@
 }
 .vfb-root .vfb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vfb-root .vfb-size,
-.vfb-root .vfb-modified { overflow: hidden; color: var(--vfb-dim-fg); white-space: nowrap; text-overflow: ellipsis; }
-/* Extra room between the right-aligned sizes and the dates. */
-.vfb-root .vfb-modified,
-.vfb-root .vfb-col-modified { padding-left: var(--vfb-column-gap); }
+.vfb-root .vfb-modified {
+  display: flex;
+  align-items: baseline;
+  overflow: hidden;
+  color: var(--vfb-dim-fg);
+  white-space: nowrap;
+  /* Equal-width digits, in any font: values line up place by place. */
+  font-variant-numeric: tabular-nums;
+}
+/* Size: number right-aligned on 3 digits, one-decimal slot (blank for
+   bytes), then the unit, left-aligned so every unit starts together. */
+.vfb-root .vfb-size-whole { flex: none; width: 3ch; text-align: right; }
+.vfb-root .vfb-size-fraction { flex: none; width: 2ch; }
+/* Separating spaces are real text (copy, screen readers), kept by pre. */
+.vfb-root .vfb-size-unit { flex: none; white-space: pre; }
+/* Modified: the whole date sits on the right edge.  Each form keeps
+   fixed slots so its rows line up; the two forms do not align with each
+   other.  Date form: day right-aligned on 2 digits, month in a slot as
+   wide as the widest month name (measured by the component), year. */
+.vfb-root .vfb-modified { justify-content: flex-end; }
+.vfb-root .vfb-date-day { flex: none; width: 2ch; text-align: right; }
+.vfb-root .vfb-date-month { flex: none; min-width: var(--vfb-month-width, 4ch); white-space: pre; }
+.vfb-root .vfb-date-year,
+.vfb-root .vfb-date-time { flex: none; white-space: pre; }
+.vfb-root .vfb-col-modified { justify-content: flex-end; }
+.vfb-root .vfb-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* Probes keep their content width: no stretching, no row height. */
+.vfb-root .vfb-measure > span { display: inline-flex; width: max-content; height: auto; white-space: pre; }
+.vfb-root .vfb-measure [data-probe=months] > span { display: inline-block; }
+/* Column labels are bold: measure them the same way. */
+.vfb-root .vfb-probe-label { font-weight: 700; }
+
 
 .vfb-root.vfb-narrow .vfb-size,
 .vfb-root.vfb-narrow .vfb-modified,

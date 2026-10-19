@@ -13,7 +13,7 @@ it("stylesheet contract", () => {
   expect(rest.join("").match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g)).toBeNull();
   expect(root).toBeDefined();
   expect(css.match(/--vfb-[a-z-]+(?=\s*:)/g)?.filter((s, i, all) => all.indexOf(s) === i).sort()).toEqual([
-    "--vfb-accent", "--vfb-accent-fg", "--vfb-bg", "--vfb-border", "--vfb-column-gap", "--vfb-dim-fg", "--vfb-error-fg", "--vfb-fg",
+    "--vfb-accent", "--vfb-accent-fg", "--vfb-bg", "--vfb-border", "--vfb-dim-fg", "--vfb-error-fg", "--vfb-fg",
     "--vfb-file-icon", "--vfb-folder-icon", "--vfb-font-family", "--vfb-font-size", "--vfb-gutter", "--vfb-hover-bg", "--vfb-row-height", "--vfb-row-inset",
     "--vfb-selected-bg", "--vfb-sticky-bg",
   ]);
@@ -22,7 +22,9 @@ it("no box around the widget", () => {
   const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
   const root = css.slice(0, css.indexOf("}"));
   expect([/(^|[\s;{])border\s*:/.test(root), /border-radius/.test(root)]).toEqual([false, false]);
-  expect(root).toContain('--vfb-font-family: "Ubuntu Sans Mono", "Ubuntu Mono", monospace;');
+  expect(root).toContain('--vfb-font-family: "Noto Sans", Cantarell, sans-serif;');
+  // No padding beyond the column gap between Size and Modified.
+  expect(/padding-left:\s*var\(--vfb-column-gap\)/.test(css)).toBe(false);
 });
 it("package contract", () => {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));

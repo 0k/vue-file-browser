@@ -237,6 +237,26 @@ it("header and rows share one column template built from the widths", async () =
   await flushPromises();
   expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 100px 150px");
 });
+it.each([
+  [{}, "96px 136px"],
+  [{ size: -40, modified: 5000 }, "56px 480px"],
+  [{ size: NaN, modified: Infinity }, "96px 136px"],
+  [{ size: -Infinity, modified: 120 }, "96px 120px"],
+  [{ size: 100.6 }, "101px 136px"],
+])("clamps host column widths with per-column default fallback: %s", async (columnWidths, expected) => {
+  const w = view({ columnWidths: Object.freeze(columnWidths), load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe(`16px minmax(0, 1fr) ${expected}`);
+  expect(w.emitted("update:columnWidths")).toBeUndefined();
+});
+it("invalid host widths fall back per column to fitted widths when measurable", async () => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 80.4 } as DOMRect);
+  const w = view({ columnWidths: { size: NaN, modified: 150 }, load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 81px 150px");
+  await w.setProps({ columnWidths: { size: 120, modified: Infinity } });
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 120px 81px");
+});
 it("dragging a column separator resizes the column on its right", async () => {
   const w = view({ columnWidths: { size: 100, modified: 150 }, load: async (p: string) => listing(p, [entry("a")]) });
   await flushPromises();
@@ -352,6 +372,53 @@ it("highlights and scrolls to the selected entry", async () => {
   expect(sel.map(r => [r.get(".vfb-name").text(), r.attributes("aria-current")])).toEqual([["b", "true"]]);
   expect(scrolled.length).toBe(1);
   expect(scrolled[0]).toContain("b");
+});
+it("renders size and date parts in their own alignment slots", async () => {
+  const day9 = Math.floor(new Date(2026, 5, 9, 8, 0).getTime() / 1000);
+  const w = view({ load: async (p: string) => listing(p, [
+    entry("a", "file", { size: 305, modified: NOW - 3600 }),
+    entry("b", "file", { size: 1400, modified: day9 }),
+  ]) });
+  await flushPromises();
+  const parts = (sel: string) => w.findAll(".vfb-row").map(r => r.findAll(`${sel} > span`).map(x => [x.classes()[0], x.text()]));
+  expect(parts(".vfb-size")).toEqual([
+    [["vfb-size-whole", "305"], ["vfb-size-fraction", ""], ["vfb-size-unit", "bytes"]],
+    [["vfb-size-whole", "1"], ["vfb-size-fraction", ".4"], ["vfb-size-unit", "kB"]],
+  ]);
+  expect(parts(".vfb-modified")).toEqual([
+    [["vfb-date-word", "Today"], ["vfb-date-time", "11:00"]],
+    [["vfb-date-day", "9"], ["vfb-date-month", "Jun"], ["vfb-date-year", "2026"]],
+  ]);
+  expect(w.findAll(".vfb-row .vfb-modified").map(m => m.attributes("title"))).toEqual(["Today 11:00", "9 Jun 2026"]);
+});
+it("measures the widest month name so months line up in any font", async () => {
+  const w = view({ load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  const probe = w.get(".vfb-measure [data-probe=months]");
+  expect([w.get(".vfb-measure").attributes("aria-hidden"), probe.findAll("span").map(s => s.text())]).toEqual(["true",
+    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]]);
+});
+it("without stored widths, fits Size and Modified to their widest content in the current font", async () => {
+  const widths: Record<string, number> = { size: 70.2, date: 80.4, relative: 92.1, "size-label": 40, "modified-label": 66, month: 24.3 };
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const key = this.dataset.probe ?? (this.parentElement?.dataset.probe === "months" ? "month" : "");
+    return { width: widths[key] ?? 0 } as DOMRect;
+  });
+  const w = view({ columnWidths: null, load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  const style = (w.element as HTMLElement).style;
+  expect([style.getPropertyValue("--vfb-columns"), style.getPropertyValue("--vfb-month-width")]).toEqual(["16px minmax(0, 1fr) 71px 93px", "25px"]);
+  // Dragging starts from the fitted width.
+  w.get(".vfb-col-size .vfb-resize").element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true, cancelable: true }));
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 490 }));
+  window.dispatchEvent(new MouseEvent("pointerup", {}));
+  expect(w.emitted("update:columnWidths")).toEqual([[{ size: 81, modified: 93 }]]);
+});
+it("stored widths win over the fitted ones", async () => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 50 } as DOMRect);
+  const w = view({ columnWidths: { size: 120, modified: 200 }, load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 120px 200px");
 });
 it("switches to the narrow layout below 28rem", async () => {
   const w = view({ load: async (p: string) => listing(p, []) });

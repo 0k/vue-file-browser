@@ -1,5 +1,5 @@
 import { expect, expectTypeOf, it } from "vitest";
-import { DEFAULT_COLUMN_WIDTHS, DEFAULT_SORT, MIN_COLUMN_WIDTHS, formatModified, formatSize, joinPath, pathSegments, sortEntries, type FolderColumnWidths, type FolderEntry, type FolderSort } from "../src/model";
+import { DEFAULT_COLUMN_WIDTHS, DEFAULT_SORT, MIN_COLUMN_WIDTHS, MONTHS, formatModified, formatSize, modifiedParts, sizeParts, joinPath, pathSegments, sortEntries, type FolderColumnWidths, type FolderEntry, type FolderSort } from "../src/model";
 
 const e = (name: string, kind: FolderEntry["kind"] = "file"): FolderEntry =>
   ({ name, kind, symlink: false, size: null, modified: null, mime: null });
@@ -9,6 +9,10 @@ it("exported sort and width defaults are frozen and readonly", () => {
   expectTypeOf(DEFAULT_SORT).toEqualTypeOf<Readonly<FolderSort>>();
   expectTypeOf(DEFAULT_COLUMN_WIDTHS).toEqualTypeOf<Readonly<FolderColumnWidths>>();
   expectTypeOf(MIN_COLUMN_WIDTHS).toEqualTypeOf<Readonly<FolderColumnWidths>>();
+});
+it("exported month abbreviations are frozen and retain their readonly tuple type", () => {
+  expect(Object.isFrozen(MONTHS)).toBe(true);
+  expectTypeOf(MONTHS).toEqualTypeOf<readonly ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]>();
 });
 
 it("sortEntries puts folders first in natural, case-insensitive order", () => {
@@ -57,4 +61,31 @@ it("sortEntries by size and date keeps folders first and missing values last", (
   expect(sortEntries(input, { key: "size", descending: true }).map(x => x.name)).toEqual(["d1", "d2", "big", "mid", "small", "none"]);
   expect(sortEntries(input, { key: "modified", descending: true }).map(x => x.name)).toEqual(["d2", "d1", "big", "mid", "small", "none"]);
   expect(sortEntries(input, { key: "name", descending: true }).map(x => x.name)).toEqual(["d2", "d1", "small", "none", "mid", "big"]);
+});
+
+it("sizeParts splits a size into number, decimals and unit for column alignment", () => {
+  expect([305, 1, 0, 1400, 34_000, 230_500, 4_400_000_000].map(sizeParts)).toEqual([
+    { whole: "305", fraction: "", unit: "bytes" },
+    { whole: "1", fraction: "", unit: "byte" },
+    { whole: "0", fraction: "", unit: "bytes" },
+    { whole: "1", fraction: ".4", unit: "kB" },
+    { whole: "34", fraction: ".0", unit: "kB" },
+    { whole: "230", fraction: ".5", unit: "kB" },
+    { whole: "4", fraction: ".4", unit: "GB" },
+  ]);
+});
+it("modifiedParts gives each form its own parts, the day kept as digits for padding", () => {
+  const now = new Date(2026, 9, 18, 19, 0, 0);
+  const s = (d: Date) => Math.floor(d.getTime() / 1000);
+  expect([
+    modifiedParts(s(new Date(2026, 9, 18, 17, 56)), now),
+    modifiedParts(s(new Date(2026, 9, 17, 9, 5)), now),
+    modifiedParts(s(new Date(2026, 5, 9, 8, 0)), now),
+    modifiedParts(s(new Date(2026, 9, 12, 8, 0)), now),
+  ]).toEqual([
+    { form: "relative", word: "Today", time: "17:56" },
+    { form: "relative", word: "Yesterday", time: "09:05" },
+    { form: "date", day: "9", month: "Jun", year: "2026" },
+    { form: "date", day: "12", month: "Oct", year: "2026" },
+  ]);
 });

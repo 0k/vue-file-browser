@@ -71,11 +71,18 @@ interface FolderColumnWidths { size: number; modified: number }  // px
 interface PathSegment { label: string; path: string }
 
 const DEFAULT_SORT: Readonly<FolderSort>;                  // name, ascending; frozen
-const DEFAULT_COLUMN_WIDTHS: Readonly<FolderColumnWidths>; // 88, 112; frozen
+const DEFAULT_COLUMN_WIDTHS: Readonly<FolderColumnWidths>; // 96, 136: used only when measuring is impossible; frozen
 const MIN_COLUMN_WIDTHS: Readonly<FolderColumnWidths>;     // 56, 72; frozen
 const MAX_COLUMN_WIDTH: number;                  // 480
 function clampColumnWidth(column: keyof FolderColumnWidths, width: number): number;
 function sortEntries(entries: FolderEntry[], sort?: FolderSort): FolderEntry[];
+interface SizeParts { whole: string; fraction: string; unit: string }
+type ModifiedParts =
+  | { form: 'relative'; word: 'Today' | 'Yesterday'; time: string }
+  | { form: 'date'; day: string; month: string; year: string };
+function sizeParts(bytes: number): SizeParts;
+function modifiedParts(seconds: number, now?: Date): ModifiedParts;
+const MONTHS: readonly string[];
 function formatSize(bytes: number): string;
 function formatModified(seconds: number, now?: Date): string;
 function joinPath(dir: string, name: string): string;
@@ -89,6 +96,14 @@ sizes and dates numerically, entries without one last, ties by name.
 ~formatSize~ uses decimal units like GNOME: ~1 byte~, ~512 bytes~,
 ~4.1 kB~, ~12.3 MB~. ~formatModified~ gives ~Today 14:32~,
 ~Yesterday 09:05~, otherwise the full date ~12 Oct 2026~, as GNOME Files does.
+~sizeParts~ and ~modifiedParts~ return the same values split for column
+alignment, which the browser renders slot by slot with equal-width digits
+(~tabular-nums~), so the alignment holds in any font: sizes as a number
+right-aligned on 3 digits, a one-decimal slot (blank for bytes) and the
+unit starting in one column; dates right-aligned as a whole, each form
+aligned only with itself — times under times, and for full dates the day
+padded to 2 digits, the month in a slot as wide as the widest month name
+(measured in the current font), and the year.
 ~pathSegments~ starts with a ~~~ segment for a path at or under ~home~,
 else with ~/~.
 
@@ -106,7 +121,7 @@ The home segment of the path bar shows a house icon.
   homeLabel?: string;         // default '~'
   showHidden?: boolean;       // default false, v-model:showHidden
   sort?: FolderSort;          // default DEFAULT_SORT, v-model:sort
-  columnWidths?: FolderColumnWidths; // default DEFAULT_COLUMN_WIDTHS, v-model:columnWidths
+  columnWidths?: FolderColumnWidths | null; // default null: fit the content; v-model:columnWidths
 }
 // emits
 'open-folder': [path: string]
@@ -130,7 +145,7 @@ active source restarts it.
 With the bindings above, the controls behave as follows.
 Clicking a column header sorts by it (Modified starts newest first); a
 second click reverses the order. Dragging the separator on the left of Size
-or Modified resizes that column, within ~MIN_COLUMN_WIDTHS~ and
+or Modified resizes that column (starting from its current width), within ~MIN_COLUMN_WIDTHS~ and
 ~MAX_COLUMN_WIDTH~; Name takes the remaining space. The header and every
 row share one column template, so labels and values stay aligned.
 Without ~v-model:column-widths~, the resize preview snaps back on release.
@@ -152,6 +167,11 @@ background is transparent): ~--vfb-bg~, ~--vfb-sticky-bg~ (behind the
 sticky column header: set it to the page colour), ~--vfb-fg~,
 ~--vfb-dim-fg~, ~--vfb-border~, ~--vfb-hover-bg~, ~--vfb-accent~,
 ~--vfb-accent-fg~, ~--vfb-selected-bg~, ~--vfb-folder-icon~,
-~--vfb-file-icon~, ~--vfb-error-fg~, ~--vfb-font-family~ (default ~"Ubuntu
-Sans Mono", "Ubuntu Mono", monospace~), ~--vfb-font-size~ (12.5 px),
-~--vfb-row-height~ (24 px), ~--vfb-gutter~, ~--vfb-column-gap~.
+~--vfb-file-icon~, ~--vfb-error-fg~, ~--vfb-font-family~ (default ~"Noto Sans", Cantarell, sans-serif~;
+alignment never needs a monospace font), ~--vfb-font-size~ (13 px),
+~--vfb-row-height~ (24 px), ~--vfb-gutter~ (also the gap between columns).
+
+Without ~columnWidths~, Size and Modified are as wide as their widest
+possible content in the current font (~999.9 bytes~, a full date, a
+~Yesterday~ time, and their labels), measured once mounted and again when
+fonts finish loading, so the space between two columns is just the gutter.
