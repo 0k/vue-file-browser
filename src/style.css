@@ -14,6 +14,8 @@
   --vfb-font-family: "Noto Sans", Cantarell, sans-serif;
   --vfb-font-size: 13px;
   --vfb-row-height: 24px;
+  /* Widest the content may grow; the scroller itself stays full width. */
+  --vfb-content-max: none;
   --vfb-gutter: 8px;
   --vfb-row-inset: 6px;
   position: relative;
@@ -92,6 +94,17 @@
 .vfb-root .vfb-crumb--current { flex: 0 0 auto; color: var(--vfb-fg); font-weight: 700; cursor: default; }
 .vfb-root .vfb-crumb--current:hover { background: transparent; }
 
+/* Content is capped and centred; the scrollers around it stay full width,
+   so scrolling over the side margins still scrolls the list. */
+.vfb-root .vfb-header,
+.vfb-root .vfb-columns,
+.vfb-root .vfb-list,
+.vfb-root .vfb-state,
+.vfb-root .vfb-truncated {
+  width: 100%;
+  max-width: var(--vfb-content-max);
+  margin-inline: auto;
+}
 .vfb-root .vfb-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -158,7 +171,7 @@
 .vfb-root .vfb-columns:hover .vfb-resize::after { background: var(--vfb-border); }
 .vfb-root .vfb-resize:hover::after { background: var(--vfb-accent); }
 
-.vfb-root .vfb-list { margin: 0; padding: 2px var(--vfb-row-inset) 6px; list-style: none; }
+.vfb-root .vfb-list { margin-block: 0; padding: 2px var(--vfb-row-inset) 6px; list-style: none; }
 .vfb-root .vfb-row {
   width: 100%;
   height: var(--vfb-row-height);
@@ -254,7 +267,7 @@
   cursor: pointer;
 }
 .vfb-root .vfb-pill:hover { background: var(--vfb-accent); color: var(--vfb-accent-fg); }
-.vfb-root .vfb-truncated { margin: 0; padding: 6px var(--vfb-gutter) 10px; color: var(--vfb-dim-fg); text-align: center; }
+.vfb-root .vfb-truncated { margin-block: 0; padding: 6px var(--vfb-gutter) 10px; color: var(--vfb-dim-fg); text-align: center; }
 .vfb-root .vfb-spinner {
   width: 20px;
   height: 20px;

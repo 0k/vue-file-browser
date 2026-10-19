@@ -169,7 +169,9 @@ sticky column header: set it to the page colour), ~--vfb-fg~,
 ~--vfb-accent-fg~, ~--vfb-selected-bg~, ~--vfb-folder-icon~,
 ~--vfb-file-icon~, ~--vfb-error-fg~, ~--vfb-font-family~ (default ~"Noto Sans", Cantarell, sans-serif~;
 alignment never needs a monospace font), ~--vfb-font-size~ (13 px),
-~--vfb-row-height~ (24 px), ~--vfb-gutter~ (also the gap between columns).
+~--vfb-row-height~ (24 px), ~--vfb-gutter~ (also the gap between columns),
+~--vfb-content-max~ (default ~none~: the widest the header, columns and
+list may grow, centred; the scrolling area stays full width).
 
 Without ~columnWidths~, Size and Modified are as wide as their widest
 possible content in the current font (~999.9 bytes~, a full date, a

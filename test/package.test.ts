@@ -13,7 +13,7 @@ it("stylesheet contract", () => {
   expect(rest.join("").match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g)).toBeNull();
   expect(root).toBeDefined();
   expect(css.match(/--vfb-[a-z-]+(?=\s*:)/g)?.filter((s, i, all) => all.indexOf(s) === i).sort()).toEqual([
-    "--vfb-accent", "--vfb-accent-fg", "--vfb-bg", "--vfb-border", "--vfb-dim-fg", "--vfb-error-fg", "--vfb-fg",
+    "--vfb-accent", "--vfb-accent-fg", "--vfb-bg", "--vfb-border", "--vfb-content-max", "--vfb-dim-fg", "--vfb-error-fg", "--vfb-fg",
     "--vfb-file-icon", "--vfb-folder-icon", "--vfb-font-family", "--vfb-font-size", "--vfb-gutter", "--vfb-hover-bg", "--vfb-row-height", "--vfb-row-inset",
     "--vfb-selected-bg", "--vfb-sticky-bg",
   ]);
@@ -25,6 +25,18 @@ it("no box around the widget", () => {
   expect(root).toContain('--vfb-font-family: "Noto Sans", Cantarell, sans-serif;');
   // No padding beyond the column gap between Size and Modified.
   expect(/padding-left:\s*var\(--vfb-column-gap\)/.test(css)).toBe(false);
+});
+it("caps the content width through --vfb-content-max, never the scroller", () => {
+  const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  expect(css.slice(0, css.indexOf("}"))).toContain("--vfb-content-max: none;");
+  const rule = css.match(/([^{}]+)\{[^}]*max-width:\s*var\(--vfb-content-max\)[^}]*\}/);
+  expect(rule?.[1]?.split(",").map(s => s.trim()).sort()).toEqual([
+    ".vfb-root .vfb-columns", ".vfb-root .vfb-header", ".vfb-root .vfb-list", ".vfb-root .vfb-state", ".vfb-root .vfb-truncated",
+  ]);
+  expect(rule?.[0]).toContain("margin-inline: auto");
+  const body = css.match(/\.vfb-root \.vfb-body \{[^}]*\}/)?.[0];
+  expect(body).toContain("overflow: auto");
+  expect(body).not.toContain("max-width");
 });
 it("package contract", () => {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
