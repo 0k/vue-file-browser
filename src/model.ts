@@ -28,6 +28,19 @@ export interface PathSegment { label: string; path: string }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
+/** Where a feed delivers each listing of the folder, or why it cannot. */
+export interface FolderFeedSink {
+  listing(listing: FolderListing): void;
+  error(message: string): void;
+}
+/**
+ * A host-owned live source of listings for one folder: calls
+ * `sink.listing` with the current listing, then again on every change
+ * (or `sink.error`), until the returned function is called.  The browser
+ * fetches nothing itself when it has a feed.
+ */
+export type FolderFeed = (path: string, sink: FolderFeedSink) => () => void;
+
 /** Folders first, then natural case-insensitive order; ties fall back to the raw name. */
 export function sortEntries(entries: FolderEntry[]): FolderEntry[] {
   return entries.slice().sort((a, b) =>

@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { entryIcon, ICONS } from "./icons";
-import { formatModified, formatSize, joinPath, pathSegments, sortEntries, type FolderEntry, type FolderListing, type FolderLoader } from "./model";
+import { formatModified, formatSize, joinPath, pathSegments, sortEntries, type FolderEntry, type FolderListing, type FolderLoader, type FolderFeed } from "./model";
 
+/**
+ * Exactly one source of listings: `load` (fetched on demand) or `feed`
+ * (the host pushes every listing, e.g. from a live channel).
+ */
 const props = withDefaults(defineProps<{
   path: string;
-  load: FolderLoader;
+  load?: FolderLoader | null;
+  feed?: FolderFeed | null;
   select?: string | null;
   home?: string | null;
   homeLabel?: string;
   showHidden?: boolean;
-}>(), { select: null, home: null, homeLabel: "~", showHidden: false });
+}>(), { load: null, feed: null, select: null, home: null, homeLabel: "~", showHidden: false });
 
 const emit = defineEmits<{
   "open-folder": [path: string];
@@ -26,26 +31,53 @@ const listing = shallowRef<FolderListing | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(false);
 const narrow = ref(false);
-// Every load takes a new generation; only the latest one may apply its result.
+// Every start (load or feed) takes a new generation; only results of the
+// latest one may apply.
 let generation = 0;
 let observer: ResizeObserver | null = null;
+let stopFeed: (() => void) | null = null;
 
-async function reload(): Promise<void> {
+function apply(mine: number, result: FolderListing): void {
+  if (mine !== generation) return;
+  const first = listing.value === null;
+  listing.value = result;
+  error.value = null;
+  loading.value = false;
+  if (first && props.select) void revealSelected();
+}
+function fail(mine: number, message: string): void {
+  if (mine !== generation) return;
+  listing.value = null;
+  error.value = message;
+  loading.value = false;
+}
+
+/** Show the folder from scratch: from the feed when there is one, else by loading it. */
+function start(): void {
   const mine = ++generation;
+  stopFeed?.();
+  stopFeed = null;
   loading.value = true;
   error.value = null;
   listing.value = null;
   try {
-    const result = await props.load(props.path);
-    if (mine !== generation) return;
-    listing.value = result;
-  } catch (e) {
-    if (mine !== generation) return;
-    error.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    if (mine === generation) loading.value = false;
+    if (props.feed) {
+      const stop = props.feed(props.path, {
+        listing: (result) => apply(mine, result),
+        error: (message) => fail(mine, message),
+      });
+      stopFeed = typeof stop === "function" ? stop : null;
+    } else if (props.load) {
+      props.load(props.path).then(
+        (result) => apply(mine, result),
+        (e: unknown) => fail(mine, e instanceof Error ? e.message : String(e)),
+      );
+    } else {
+      fail(mine, "No folder source: pass load or feed");
+    }
+  } catch (e: unknown) {
+    fail(mine, e instanceof Error ? e.message : String(e));
   }
-  if (props.select) await revealSelected();
 }
 
 async function revealSelected(): Promise<void> {
@@ -53,11 +85,11 @@ async function revealSelected(): Promise<void> {
   root.value?.querySelector(".vfb-row--selected")?.scrollIntoView({ block: "nearest" });
 }
 
-watch(() => props.path, () => { void reload(); });
+watch([() => props.path, () => props.feed ?? props.load], start);
 watch(() => props.select, (value) => { if (value && listing.value) void revealSelected(); });
 
 onMounted(() => {
-  void reload();
+  start();
   if (typeof ResizeObserver !== "undefined" && root.value) {
     observer = new ResizeObserver((entries) => {
       const width = entries[entries.length - 1]?.contentRect.width;
@@ -68,6 +100,8 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   generation += 1;
+  stopFeed?.();
+  stopFeed = null;
   observer?.disconnect();
   observer = null;
 });
@@ -105,15 +139,12 @@ const toggleHidden = () => emit("update:showHidden", !props.showHidden);
       <button type="button" class="vfb-button vfb-hidden-toggle" :aria-pressed="showHidden ? 'true' : 'false'" aria-label="Show hidden files" title="Show hidden files" @click="toggleHidden">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="ICONS.hidden" /></svg>
       </button>
-      <button type="button" class="vfb-button vfb-reload" aria-label="Reload" title="Reload" @click="reload">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="ICONS.reload" /></svg>
-      </button>
     </div>
 
     <div class="vfb-body">
       <div v-if="error !== null" class="vfb-state vfb-state--error" role="alert">
         <p class="vfb-state-message">{{ error }}</p>
-        <button type="button" class="vfb-pill" @click="reload">Retry</button>
+        <button type="button" class="vfb-pill" @click="start()">Retry</button>
       </div>
       <div v-else-if="loading" class="vfb-state" role="status"><span class="vfb-spinner" aria-hidden="true"></span><p class="vfb-state-message">Loading…</p></div>
       <template v-else-if="listing">

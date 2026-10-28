@@ -4,15 +4,16 @@
 
 A reusable Vue 3 folder browser with the look of GNOME Files' list view: a
 header bar with an Up button, a clickable path bar, a hidden-files toggle
-and Reload, then one row per entry with its icon, name, size and
+then one row per entry with its icon, name, size and
 modification date. It fills whatever box the host gives it, from a full
-page to a fixed-height panel.
+page to a fixed-height panel. Fed by a live host source, it follows folder
+changes without a Reload button and without fetching anything itself.
 
 The package owns sorting, formatting, rendering, loading states and
-selection. Hosts own fetching, authorisation, routing and history: they
-supply a ~load(path)~ function and turn the ~open-folder~ / ~open-file~
-events into navigation. MIT licensed; Vue ~^3.5.0~ is a peer; there are no
-runtime dependencies.
+selection. Hosts own fetching, change notification, authorisation, routing
+and history: they supply either ~load(path)~ or ~feed(path, sink)~ and turn
+the ~open-folder~ / ~open-file~ events into navigation. MIT licensed;
+Vue ~^3.5.0~ is a peer; there are no runtime dependencies.
 
 Run ~npm install~, ~npm run check~, then ~npm run pack~. The last command
 builds and produces ~artifacts/0k-vue-file-browser-0.1.0.tgz~ without
@@ -27,8 +28,8 @@ import '@0k/vue-file-browser/style.css';
 #+end_src
 
 #+begin_src vue
-<FileBrowser :path="folder" :load="loadFolder" :select="fileName"
-  :home="homeDir" v-model:show-hidden="showHidden"
+<FileBrowser :path="folder" :feed="folderFeed"
+  :select="fileName" :home="homeDir" v-model:show-hidden="showHidden"
   @open-folder="(path) => router.push({ query: { path } })"
   @open-file="(path, entry) => openFile(path, entry)" />
 #+end_src
@@ -52,6 +53,8 @@ interface FolderListing {
   truncated: boolean;
 }
 type FolderLoader = (path: string) => Promise<FolderListing>;
+interface FolderFeedSink { listing(listing: FolderListing): void; error(message: string): void }
+type FolderFeed = (path: string, sink: FolderFeedSink) => () => void;  // returns stop
 interface PathSegment { label: string; path: string }
 
 function sortEntries(entries: FolderEntry[]): FolderEntry[];
@@ -75,7 +78,8 @@ else with ~/~.
 #+begin_src typescript
 {
   path: string;               // absolute folder to show
-  load: FolderLoader;
+  load?: FolderLoader | null; // fetch on demand…
+  feed?: FolderFeed | null;   // …or receive every listing (takes precedence)
   select?: string | null;     // entry name to highlight and scroll to
   home?: string | null;       // collapsed into the first path-bar segment
   homeLabel?: string;         // default '~'
@@ -87,8 +91,17 @@ else with ~/~.
 'update:showHidden': [value: boolean]
 #+end_src
 
-~load~ runs on mount, whenever ~path~ changes, and on Reload or Retry; a
-result is ignored when a newer load started or the component unmounted.
+The browser takes its listings from exactly one source. With ~feed~, it
+starts the feed on mount, restarts it when ~path~ (or the feed) changes,
+stops it on unmount, and fetches nothing itself: each ~sink.listing~
+replaces the rows in place (the selection is scrolled to only on the first
+listing), each ~sink.error~ shows the message, and a later listing clears
+it. Without a feed, ~load~ runs on mount and whenever ~path~ changes.
+Retry restarts the source. Results of a superseded start, or arriving
+after unmount, are ignored.
+Keep ~load~ and ~feed~ as stable references: a new function identity for the
+active source restarts it.
+
 A rejected load shows the error's message verbatim with a Retry button.
 Entries whose name starts with a dot are hidden unless ~showHidden~; a
 folder holding only hidden entries offers a Show hidden files button that
@@ -97,6 +110,8 @@ Clicking a folder, an ancestor in the path bar, or Up emits ~open-folder~;
 clicking any other entry emits ~open-file~ with its absolute path. The
 component keeps no history. Below 448 px of width the Size and Modified
 columns are dropped.
+
+There is no Reload button: changes arrive through ~feed~.
 
 * Styling
 

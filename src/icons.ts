@@ -3,7 +3,6 @@ import type { FolderEntry } from "./model";
 /** 16×16 SVG path data, drawn in the style of the Adwaita symbolic icons. */
 export const ICONS = {
   up: "M8 2.6 2.3 8.3l1.4 1.4L7 6.4V14h2V6.4l3.3 3.3 1.4-1.4z",
-  reload: "M8 2a6 6 0 1 0 5.66 8h-2.17A4 4 0 1 1 8 4c1.1 0 2.1.45 2.83 1.17L9 7h5V2l-1.76 1.76A5.97 5.97 0 0 0 8 2z",
   hidden: "M8 3C4.5 3 1.7 5.2 1 8c.7 2.8 3.5 5 7 5s6.3-2.2 7-5c-.7-2.8-3.5-5-7-5zm0 8.2A3.2 3.2 0 1 1 8 4.8a3.2 3.2 0 0 1 0 6.4zM8 6.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z",
   home: "M8 1.5 1 7.5h2V14h3.5v-4h3v4H13V7.5h2z",
   folder: "M1 3.5A1.5 1.5 0 0 1 2.5 2h3.6l1.6 1.6h5.8A1.5 1.5 0 0 1 15 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5z",
