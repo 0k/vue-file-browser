@@ -5,16 +5,24 @@
 A reusable Vue 3 folder browser with the look of GNOME Files' list view: a
 slim header bar with an Up button, a clickable path bar and a hidden-files
 toggle, then compact rows with each entry's icon, name, size and
-modification date. It draws no box of its own and fills whatever space the
-host gives it, from a full page to a fixed-height panel. Fed by a live host
-source, it follows folder changes without a Reload button and without
-fetching anything itself.
+modification date, under sortable, resizable column headers. It draws no
+box of its own and fills whatever space the host gives it, from a full page
+to a fixed-height panel. Fed by a live host source, it follows folder
+changes without a Reload button and without fetching anything itself.
 
-The package owns sorting, formatting, rendering, loading states and
-selection. Hosts own fetching, change notification, authorisation, routing
-and history: they supply either ~load(path)~ or ~feed(path, sink)~ and turn
-the ~open-folder~ / ~open-file~ events into navigation. MIT licensed;
-Vue ~^3.5.0~ is a peer; there are no runtime dependencies.
+The package owns sorting, formatting, rendering, loading states, column
+resizing and selection. Hosts own fetching, change notification,
+authorisation, routing, history and persistence: they supply either
+~load(path)~ (fetched on demand) or ~feed(path, sink)~ (pushes every
+listing, e.g. from a live channel), and turn the ~open-folder~ /
+~open-file~ events into navigation.
+
+Hosts must bind ~v-model:sort~, ~v-model:show-hidden~ and
+~v-model:column-widths~ for the controls to take effect. The component keeps
+no local state for these settings; the bindings apply its update events to
+host-owned values. Hosts may also persist these values.
+
+MIT licensed; Vue ~^3.5.0~ is a peer; there are no runtime dependencies.
 
 Run ~npm install~, ~npm run check~, then ~npm run pack~. The last command
 builds and produces ~artifacts/0k-vue-file-browser-0.1.0.tgz~ without
@@ -31,6 +39,7 @@ import '@0k/vue-file-browser/style.css';
 #+begin_src vue
 <FileBrowser :path="folder" :feed="folderFeed"
   :select="fileName" :home="homeDir" v-model:show-hidden="showHidden"
+  v-model:sort="sort" v-model:column-widths="widths"
   @open-folder="(path) => router.push({ query: { path } })"
   @open-file="(path, entry) => openFile(path, entry)" />
 #+end_src
@@ -56,9 +65,17 @@ interface FolderListing {
 type FolderLoader = (path: string) => Promise<FolderListing>;
 interface FolderFeedSink { listing(listing: FolderListing): void; error(message: string): void }
 type FolderFeed = (path: string, sink: FolderFeedSink) => () => void;  // returns stop
+type FolderSortKey = 'name' | 'size' | 'modified';
+interface FolderSort { key: FolderSortKey; descending: boolean }
+interface FolderColumnWidths { size: number; modified: number }  // px
 interface PathSegment { label: string; path: string }
 
-function sortEntries(entries: FolderEntry[]): FolderEntry[];
+const DEFAULT_SORT: Readonly<FolderSort>;                  // name, ascending; frozen
+const DEFAULT_COLUMN_WIDTHS: Readonly<FolderColumnWidths>; // 88, 112; frozen
+const MIN_COLUMN_WIDTHS: Readonly<FolderColumnWidths>;     // 56, 72; frozen
+const MAX_COLUMN_WIDTH: number;                  // 480
+function clampColumnWidth(column: keyof FolderColumnWidths, width: number): number;
+function sortEntries(entries: FolderEntry[], sort?: FolderSort): FolderEntry[];
 function formatSize(bytes: number): string;
 function formatModified(seconds: number, now?: Date): string;
 function joinPath(dir: string, name: string): string;
@@ -66,8 +83,9 @@ function pathSegments(path: string, home?: string | null): PathSegment[];
 const FileBrowser: Component;
 #+end_src
 
-~sortEntries~ puts folders first, then sorts by name in natural,
-case-insensitive order (~b2~ before ~b10~), breaking ties on the raw name.
+~sortEntries~ puts folders first, then sorts by the sort key: names in
+natural, case-insensitive order (~b2~ before ~b10~, ties on the raw name);
+sizes and dates numerically, entries without one last, ties by name.
 ~formatSize~ uses decimal units like GNOME: ~1 byte~, ~512 bytes~,
 ~4.1 kB~, ~12.3 MB~. ~formatModified~ gives ~Today 14:32~,
 ~Yesterday 09:05~, otherwise the full date ~12 Oct 2026~, as GNOME Files does.
@@ -87,11 +105,15 @@ The home segment of the path bar shows a house icon.
   home?: string | null;       // collapsed into the first path-bar segment
   homeLabel?: string;         // default '~'
   showHidden?: boolean;       // default false, v-model:showHidden
+  sort?: FolderSort;          // default DEFAULT_SORT, v-model:sort
+  columnWidths?: FolderColumnWidths; // default DEFAULT_COLUMN_WIDTHS, v-model:columnWidths
 }
 // emits
 'open-folder': [path: string]
 'open-file': [path: string, entry: FolderEntry]
 'update:showHidden': [value: boolean]
+'update:sort': [value: FolderSort]
+'update:columnWidths': [value: FolderColumnWidths]
 #+end_src
 
 The browser takes its listings from exactly one source. With ~feed~, it
@@ -105,6 +127,13 @@ after unmount, are ignored.
 Keep ~load~ and ~feed~ as stable references: a new function identity for the
 active source restarts it.
 
+With the bindings above, the controls behave as follows.
+Clicking a column header sorts by it (Modified starts newest first); a
+second click reverses the order. Dragging the separator on the left of Size
+or Modified resizes that column, within ~MIN_COLUMN_WIDTHS~ and
+~MAX_COLUMN_WIDTH~; Name takes the remaining space. The header and every
+row share one column template, so labels and values stay aligned.
+Without ~v-model:column-widths~, the resize preview snaps back on release.
 A rejected load shows the error's message verbatim with a Retry button.
 Entries whose name starts with a dot are hidden unless ~showHidden~; a
 folder holding only hidden entries offers a Show hidden files button that
@@ -113,7 +142,6 @@ Clicking a folder, an ancestor in the path bar, or Up emits ~open-folder~;
 clicking any other entry emits ~open-file~ with its absolute path. The
 component keeps no history. Below 448 px of width the Size and Modified
 columns are dropped.
-
 There is no Reload button: changes arrive through ~feed~.
 
 * Styling

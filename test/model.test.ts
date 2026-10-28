@@ -1,8 +1,15 @@
-import { expect, it } from "vitest";
-import { formatModified, formatSize, joinPath, pathSegments, sortEntries, type FolderEntry } from "../src/model";
+import { expect, expectTypeOf, it } from "vitest";
+import { DEFAULT_COLUMN_WIDTHS, DEFAULT_SORT, MIN_COLUMN_WIDTHS, formatModified, formatSize, joinPath, pathSegments, sortEntries, type FolderColumnWidths, type FolderEntry, type FolderSort } from "../src/model";
 
 const e = (name: string, kind: FolderEntry["kind"] = "file"): FolderEntry =>
   ({ name, kind, symlink: false, size: null, modified: null, mime: null });
+
+it("exported sort and width defaults are frozen and readonly", () => {
+  expect([DEFAULT_SORT, DEFAULT_COLUMN_WIDTHS, MIN_COLUMN_WIDTHS].map(Object.isFrozen)).toEqual([true, true, true]);
+  expectTypeOf(DEFAULT_SORT).toEqualTypeOf<Readonly<FolderSort>>();
+  expectTypeOf(DEFAULT_COLUMN_WIDTHS).toEqualTypeOf<Readonly<FolderColumnWidths>>();
+  expectTypeOf(MIN_COLUMN_WIDTHS).toEqualTypeOf<Readonly<FolderColumnWidths>>();
+});
 
 it("sortEntries puts folders first in natural, case-insensitive order", () => {
   const input = [e("b10.txt"), e("Zeta", "dir"), e("b2.txt"), e("alpha", "dir"), e("B1.txt"), e("x", "other"), e("a")];
@@ -41,4 +48,13 @@ it("pathSegments collapses home", () => {
   ]);
   expect(pathSegments("/home/me", "/home/me/")).toEqual([{ label: "~", path: "/home/me" }]);
   expect(pathSegments("/home/meow", "/home/me").map(x => x.label)).toEqual(["/", "home", "meow"]);
+});
+it("sortEntries by size and date keeps folders first and missing values last", () => {
+  const f = (name: string, size: number | null, modified: number | null, kind: FolderEntry["kind"] = "file"): FolderEntry =>
+    ({ name, kind, symlink: false, size, modified, mime: null });
+  const input = [f("big", 900, 3), f("d2", null, 9, "dir"), f("small", 10, 1), f("none", null, null), f("d1", null, 1, "dir"), f("mid", 100, 2)];
+  expect(sortEntries(input, { key: "size", descending: false }).map(x => x.name)).toEqual(["d1", "d2", "small", "mid", "big", "none"]);
+  expect(sortEntries(input, { key: "size", descending: true }).map(x => x.name)).toEqual(["d1", "d2", "big", "mid", "small", "none"]);
+  expect(sortEntries(input, { key: "modified", descending: true }).map(x => x.name)).toEqual(["d2", "d1", "big", "mid", "small", "none"]);
+  expect(sortEntries(input, { key: "name", descending: true }).map(x => x.name)).toEqual(["d2", "d1", "small", "none", "mid", "big"]);
 });

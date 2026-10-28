@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { entryIcon, ICONS } from "./icons";
-import { formatModified, formatSize, joinPath, pathSegments, sortEntries, type FolderEntry, type FolderListing, type FolderLoader, type FolderFeed } from "./model";
+import {
+  DEFAULT_COLUMN_WIDTHS, DEFAULT_SORT, clampColumnWidth, formatModified, formatSize, joinPath, pathSegments, sortEntries,
+  type FolderColumnWidths, type FolderEntry, type FolderListing, type FolderLoader, type FolderSort, type FolderSortKey, type FolderFeed,
+} from "./model";
 
 /**
  * Exactly one source of listings: `load` (fetched on demand) or `feed`
@@ -15,27 +18,40 @@ const props = withDefaults(defineProps<{
   home?: string | null;
   homeLabel?: string;
   showHidden?: boolean;
-}>(), { load: null, feed: null, select: null, home: null, homeLabel: "~", showHidden: false });
+  sort?: FolderSort;
+  columnWidths?: FolderColumnWidths;
+}>(), {
+  load: null, feed: null, select: null, home: null, homeLabel: "~", showHidden: false,
+  sort: () => DEFAULT_SORT, columnWidths: () => DEFAULT_COLUMN_WIDTHS,
+});
 
 const emit = defineEmits<{
   "open-folder": [path: string];
   "open-file": [path: string, entry: FolderEntry];
   "update:showHidden": [value: boolean];
+  "update:sort": [value: FolderSort];
+  "update:columnWidths": [value: FolderColumnWidths];
 }>();
 
 /** Below this width the Size and Modified columns are dropped. */
 const NARROW_PX = 448;
+const ICON_COLUMN = "16px";
 
 const root = ref<HTMLElement | null>(null);
 const listing = shallowRef<FolderListing | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(false);
 const narrow = ref(false);
+/** Widths while a column separator is being dragged; null otherwise. */
+const dragWidths = ref<FolderColumnWidths | null>(null);
 // Every start (load or feed) takes a new generation; only results of the
 // latest one may apply.
 let generation = 0;
 let observer: ResizeObserver | null = null;
 let stopFeed: (() => void) | null = null;
+let endDrag: (() => void) | null = null;
+let suppressSortClick = false;
+let suppressSortTimer: number | null = null;
 
 function apply(mine: number, result: FolderListing): void {
   if (mine !== generation) return;
@@ -104,13 +120,23 @@ onBeforeUnmount(() => {
   stopFeed = null;
   observer?.disconnect();
   observer = null;
+  endDrag?.();
+  if (suppressSortTimer !== null) window.clearTimeout(suppressSortTimer);
+  suppressSortTimer = null;
 });
 
-const sorted = computed(() => listing.value ? sortEntries(listing.value.entries) : []);
+const sorted = computed(() => listing.value ? sortEntries(listing.value.entries, activeSort.value) : []);
 const visible = computed(() => props.showHidden ? sorted.value : sorted.value.filter(e => !e.name.startsWith(".")));
 const segments = computed(() => pathSegments(props.path, props.home).map(s => s.label === "~" && s.path !== "/" ? { ...s, label: props.homeLabel } : s));
 const folderName = computed(() => segments.value[segments.value.length - 1]?.label ?? props.path);
 const parent = computed(() => listing.value ? listing.value.parent : props.path === "/" ? null : undefined);
+/** The sort in effect (withDefaults guarantees it; the template needs it non-optional). */
+const activeSort = computed<FolderSort>(() => props.sort ?? DEFAULT_SORT);
+const widths = computed<FolderColumnWidths>(() => dragWidths.value ?? props.columnWidths ?? DEFAULT_COLUMN_WIDTHS);
+/** One column template shared by the header and every row, so they align. */
+const columns = computed(() => narrow.value
+  ? `${ICON_COLUMN} minmax(0, 1fr)`
+  : `${ICON_COLUMN} minmax(0, 1fr) ${widths.value.size}px ${widths.value.modified}px`);
 
 const isHome = (path: string) => !!props.home && path === pathSegments(props.home, props.home)[0]?.path;
 
@@ -123,10 +149,60 @@ function goUp(): void {
   if (parent.value) emit("open-folder", parent.value);
 }
 const toggleHidden = () => emit("update:showHidden", !props.showHidden);
+
+function sortBy(key: FolderSortKey): void {
+  if (suppressSortClick) { suppressSortClick = false; return; }
+  const descending = activeSort.value.key === key ? !activeSort.value.descending : key === "modified";
+  emit("update:sort", { key, descending });
+}
+function ariaSort(key: FolderSortKey): "ascending" | "descending" | "none" {
+  return activeSort.value.key !== key ? "none" : activeSort.value.descending ? "descending" : "ascending";
+}
+
+/**
+ * Drag the separator on the left of a column: Name takes the remaining
+ * space, so moving the separator left widens the column on its right.
+ */
+function startResize(column: keyof FolderColumnWidths, event: PointerEvent): void {
+  event.preventDefault();
+  endDrag?.();
+  if (suppressSortTimer !== null) window.clearTimeout(suppressSortTimer);
+  suppressSortTimer = null;
+  suppressSortClick = false;
+  const startX = event.clientX;
+  const start = { ...widths.value };
+  dragWidths.value = start;
+  const move = (e: PointerEvent) => {
+    if (e.clientX !== startX) suppressSortClick = true;
+    dragWidths.value = { ...start, [column]: clampColumnWidth(column, start[column] - (e.clientX - startX)) };
+  };
+  const up = () => {
+    const final = dragWidths.value;
+    endDrag?.();
+    if (suppressSortClick) {
+      // The pointer's follow-up click gets this task; later clicks must sort.
+      suppressSortTimer = window.setTimeout(() => {
+        suppressSortClick = false;
+        suppressSortTimer = null;
+      }, 0);
+    }
+    if (final && (final.size !== start.size || final.modified !== start.modified)) emit("update:columnWidths", final);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+  endDrag = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    dragWidths.value = null;
+    endDrag = null;
+  };
+}
 </script>
 
 <template>
-  <div ref="root" class="vfb-root" :class="{ 'vfb-narrow': narrow }">
+  <div ref="root" class="vfb-root" :class="{ 'vfb-narrow': narrow }" :style="{ '--vfb-columns': columns }">
     <div class="vfb-header">
       <button type="button" class="vfb-button vfb-up" :disabled="!parent" aria-label="Parent folder" title="Parent folder" @click="goUp">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="ICONS.up" /></svg>
@@ -160,8 +236,18 @@ const toggleHidden = () => emit("update:showHidden", !props.showHidden);
           <button type="button" class="vfb-pill" @click="emit('update:showHidden', true)">Show hidden files</button>
         </div>
         <template v-else>
-          <div class="vfb-columns" aria-hidden="true">
-            <span class="vfb-col-name">Name</span><span class="vfb-col-size">Size</span><span class="vfb-col-modified">Modified</span>
+          <div class="vfb-columns" role="row">
+            <button type="button" class="vfb-col vfb-col-name" role="columnheader" :aria-sort="ariaSort('name')" @click="sortBy('name')">
+              Name<span v-if="activeSort.key === 'name'" class="vfb-sort-arrow" aria-hidden="true">{{ activeSort.descending ? '▼' : '▲' }}</span>
+            </button>
+            <button type="button" class="vfb-col vfb-col-size" role="columnheader" :aria-sort="ariaSort('size')" @click="sortBy('size')">
+              <span class="vfb-resize" aria-hidden="true" @pointerdown="startResize('size', $event)" @click.stop="suppressSortClick = false"></span>
+              Size<span v-if="activeSort.key === 'size'" class="vfb-sort-arrow" aria-hidden="true">{{ activeSort.descending ? '▼' : '▲' }}</span>
+            </button>
+            <button type="button" class="vfb-col vfb-col-modified" role="columnheader" :aria-sort="ariaSort('modified')" @click="sortBy('modified')">
+              <span class="vfb-resize" aria-hidden="true" @pointerdown="startResize('modified', $event)" @click.stop="suppressSortClick = false"></span>
+              Modified<span v-if="activeSort.key === 'modified'" class="vfb-sort-arrow" aria-hidden="true">{{ activeSort.descending ? '▼' : '▲' }}</span>
+            </button>
           </div>
           <ul class="vfb-list" :aria-label="folderName">
             <li v-for="entry in visible" :key="entry.name">

@@ -4,7 +4,7 @@ import FileBrowser from "../src/FileBrowser.vue";
 import type { FolderEntry, FolderFeed, FolderFeedSink, FolderListing, FolderLoader } from "../src/model";
 
 const wrappers: VueWrapper[] = [];
-afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); });
+afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); vi.useRealTimers(); });
 
 let observers: { cb: ResizeObserverCallback; disconnect: ReturnType<typeof vi.fn> }[] = [];
 const scrolled: string[] = [];
@@ -219,6 +219,99 @@ it("shows a feed error, recovers when the feed delivers again, and Retry restart
   await w.get(".vfb-state--error button").trigger("click");
   expect([feeds.length, feeds[0]!.stop.mock.calls.length]).toEqual([2, 1]);
 });
+it("sorts by the clicked column and reverses on a second click", async () => {
+  const entries = [entry("big", "file", { size: 900, modified: NOW - 10 }), entry("small", "file", { size: 1, modified: NOW - 5 }), entry("d", "dir")];
+  const w = view({ load: async (p: string) => listing(p, entries) });
+  await flushPromises();
+  const header = () => w.findAll(".vfb-col").map(c => [c.text(), c.attributes("aria-sort")]);
+  expect(header()).toEqual([["Name▲", "ascending"], ["Size", "none"], ["Modified", "none"]]);
+  await w.get(".vfb-col-size").trigger("click");
+  await w.get(".vfb-col-name").trigger("click");
+  await w.get(".vfb-col-modified").trigger("click");
+  expect(w.emitted("update:sort")).toEqual([[{ key: "size", descending: false }], [{ key: "name", descending: true }], [{ key: "modified", descending: true }]]);
+  await w.setProps({ sort: { key: "size", descending: true } });
+  expect([rows(w).map(r => r[0]), header()]).toEqual([["d", "big", "small"], [["Name", "none"], ["Size▼", "descending"], ["Modified", "none"]]]);
+});
+it("header and rows share one column template built from the widths", async () => {
+  const w = view({ columnWidths: { size: 100, modified: 150 }, load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 100px 150px");
+});
+it("dragging a column separator resizes the column on its right", async () => {
+  const w = view({ columnWidths: { size: 100, modified: 150 }, load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  const handle = w.get(".vfb-col-modified .vfb-resize");
+  handle.element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true, cancelable: true }));
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 460 }));
+  await flushPromises();
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 100px 190px");
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 900 }));
+  window.dispatchEvent(new MouseEvent("pointerup", {}));
+  // Pointerup over the header produces a click on the common ancestor button.
+  w.get(".vfb-col-modified").element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+  await flushPromises();
+  // Clamped to the minimum; the post-drag header click does not sort.
+  expect([w.emitted("update:columnWidths"), w.emitted("update:sort")]).toEqual([[[{ size: 100, modified: 72 }]], undefined]);
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr) 100px 150px");
+  await w.get(".vfb-col-modified").trigger("click");
+  expect(w.emitted("update:sort")).toEqual([[{ key: "modified", descending: true }]]);
+});
+it("a separator press without movement does not suppress a plain header click", async () => {
+  const w = view({ load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  w.get(".vfb-col-size .vfb-resize").element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true }));
+  window.dispatchEvent(new MouseEvent("pointerup"));
+  await w.get(".vfb-col-size").trigger("click");
+  expect(w.emitted("update:sort")).toEqual([[{ key: "size", descending: false }]]);
+});
+it("a drag ending with a separator click does not suppress the next header click", async () => {
+  const w = view({ load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  const handle = w.get(".vfb-col-size .vfb-resize");
+  handle.element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true }));
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 460 }));
+  window.dispatchEvent(new MouseEvent("pointerup"));
+  await handle.trigger("click");
+  expect(w.emitted("update:sort")).toBeUndefined();
+  await w.get(".vfb-col-size").trigger("click");
+  expect(w.emitted("update:sort")).toEqual([[{ key: "size", descending: false }]]);
+});
+it.each(["no click", "outside click", "pointercancel"])("expires drag click suppression after %s", async ending => {
+  const w = view({ load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  vi.useFakeTimers();
+  w.get(".vfb-col-size .vfb-resize").element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true }));
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 460 }));
+  window.dispatchEvent(new MouseEvent(ending === "pointercancel" ? "pointercancel" : "pointerup"));
+  if (ending === "outside click") w.get(".vfb-columns").element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+  vi.runOnlyPendingTimers();
+  w.get(".vfb-col-size").element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+  expect(w.emitted("update:sort")).toEqual([[{ key: "size", descending: false }]]);
+});
+it("suppresses the same-task header click after a moved drag", async () => {
+  const w = view({ load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  vi.useFakeTimers();
+  w.get(".vfb-col-size .vfb-resize").element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true }));
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 460 }));
+  window.dispatchEvent(new MouseEvent("pointerup"));
+  w.get(".vfb-col-size").element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+  expect(w.emitted("update:sort")).toBeUndefined();
+  vi.runOnlyPendingTimers();
+  w.get(".vfb-col-size").element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+  expect(w.emitted("update:sort")).toEqual([[{ key: "size", descending: false }]]);
+});
+it("clears the pending drag click suppression timer on teardown", async () => {
+  const w = view({ load: async (p: string) => listing(p, [entry("a")]) });
+  await flushPromises();
+  vi.useFakeTimers();
+  w.get(".vfb-col-size .vfb-resize").element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 500, bubbles: true }));
+  window.dispatchEvent(new MouseEvent("pointermove", { clientX: 460 }));
+  window.dispatchEvent(new MouseEvent("pointerup"));
+  expect(vi.getTimerCount()).toBe(1);
+  w.unmount(); wrappers.length = 0;
+  expect(vi.getTimerCount()).toBe(0);
+});
 it("notes a truncated listing", async () => {
   const w = view({ load: async (p: string) => listing(p, [entry("a"), entry("b")], { truncated: true }) });
   await flushPromises();
@@ -266,6 +359,7 @@ it("switches to the narrow layout below 28rem", async () => {
   const fire = (width: number) => observers[0]!.cb([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver);
   fire(300); await flushPromises();
   expect(w.classes()).toContain("vfb-narrow");
+  expect((w.element as HTMLElement).style.getPropertyValue("--vfb-columns")).toBe("16px minmax(0, 1fr)");
   fire(900); await flushPromises();
   expect(w.classes()).not.toContain("vfb-narrow");
 });

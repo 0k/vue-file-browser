@@ -59,3 +59,9 @@ it("documents that the host applies requests to show hidden files", () => {
   const readme = readFileSync(new URL("../README.org", import.meta.url), "utf8").replace(/\s+/g, " ");
   expect(readme).toContain("the host must update ~showHidden~ to reveal them.");
 });
+it("documents the required control bindings separately from optional persistence", () => {
+  const readme = readFileSync(new URL("../README.org", import.meta.url), "utf8").replace(/\s+/g, " ");
+  expect(readme).toContain("Hosts must bind ~v-model:sort~, ~v-model:show-hidden~ and ~v-model:column-widths~ for the controls to take effect.");
+  expect(readme).toContain("Without ~v-model:column-widths~, the resize preview snaps back on release.");
+  expect(readme).not.toContain("if they want them remembered");
+});

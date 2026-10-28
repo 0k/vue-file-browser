@@ -28,6 +28,10 @@ export interface PathSegment { label: string; path: string }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
+export type FolderSortKey = "name" | "size" | "modified";
+export interface FolderSort { key: FolderSortKey; descending: boolean }
+export const DEFAULT_SORT: Readonly<FolderSort> = Object.freeze({ key: "name", descending: false });
+
 /** Where a feed delivers each listing of the folder, or why it cannot. */
 export interface FolderFeedSink {
   listing(listing: FolderListing): void;
@@ -41,12 +45,37 @@ export interface FolderFeedSink {
  */
 export type FolderFeed = (path: string, sink: FolderFeedSink) => () => void;
 
-/** Folders first, then natural case-insensitive order; ties fall back to the raw name. */
-export function sortEntries(entries: FolderEntry[]): FolderEntry[] {
-  return entries.slice().sort((a, b) =>
-    Number(b.kind === "dir") - Number(a.kind === "dir")
-    || collator.compare(a.name, b.name)
-    || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+/** Pixel widths of the resizable columns; Name takes the remaining space. */
+export interface FolderColumnWidths { size: number; modified: number }
+export const DEFAULT_COLUMN_WIDTHS: Readonly<FolderColumnWidths> = Object.freeze({ size: 88, modified: 112 });
+export const MIN_COLUMN_WIDTHS: Readonly<FolderColumnWidths> = Object.freeze({ size: 56, modified: 72 });
+export const MAX_COLUMN_WIDTH = 480;
+
+export function clampColumnWidth(column: keyof FolderColumnWidths, width: number): number {
+  return Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTHS[column], width)));
+}
+
+const byName = (a: FolderEntry, b: FolderEntry) =>
+  collator.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+/** Missing values sort after present ones, whatever the direction. */
+function byNumber(a: number | null, b: number | null, descending: boolean): number {
+  if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+  return descending ? b - a : a - b;
+}
+
+/**
+ * Folders first (as GNOME Files does), then by the sort key; names use a
+ * natural case-insensitive order, ties fall back to the name.
+ */
+export function sortEntries(entries: FolderEntry[], sort: FolderSort = DEFAULT_SORT): FolderEntry[] {
+  return entries.slice().sort((a, b) => {
+    const dirs = Number(b.kind === "dir") - Number(a.kind === "dir");
+    if (dirs) return dirs;
+    if (sort.key === "name") return sort.descending ? byName(b, a) : byName(a, b);
+    const key = sort.key;
+    return byNumber(a[key], b[key], sort.descending) || byName(a, b);
+  });
 }
 
 const SIZE_UNITS = ["kB", "MB", "GB", "TB", "PB"];
