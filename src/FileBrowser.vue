@@ -112,6 +112,8 @@ const segments = computed(() => pathSegments(props.path, props.home).map(s => s.
 const folderName = computed(() => segments.value[segments.value.length - 1]?.label ?? props.path);
 const parent = computed(() => listing.value ? listing.value.parent : props.path === "/" ? null : undefined);
 
+const isHome = (path: string) => !!props.home && path === pathSegments(props.home, props.home)[0]?.path;
+
 function open(entry: FolderEntry): void {
   const target = joinPath(listing.value?.path ?? props.path, entry.name);
   if (entry.kind === "dir") emit("open-folder", target);
@@ -132,8 +134,8 @@ const toggleHidden = () => emit("update:showHidden", !props.showHidden);
       <nav class="vfb-pathbar" aria-label="Location">
         <template v-for="(segment, index) in segments" :key="segment.path">
           <span v-if="index > 0 && segments[index - 1]!.path !== '/'" class="vfb-crumb-sep" aria-hidden="true">/</span>
-          <span v-if="index === segments.length - 1" class="vfb-crumb vfb-crumb--current" aria-current="location" :title="segment.path">{{ segment.label }}</span>
-          <button v-else type="button" class="vfb-crumb" :title="segment.path" @click="emit('open-folder', segment.path)">{{ segment.label }}</button>
+          <span v-if="index === segments.length - 1" class="vfb-crumb vfb-crumb--current" aria-current="location" :title="segment.path"><svg v-if="isHome(segment.path)" class="vfb-crumb-home" viewBox="0 0 16 16" aria-hidden="true"><path :d="ICONS.home" /></svg>{{ segment.label }}</span>
+          <button v-else type="button" class="vfb-crumb" :title="segment.path" @click="emit('open-folder', segment.path)"><svg v-if="isHome(segment.path)" class="vfb-crumb-home" viewBox="0 0 16 16" aria-hidden="true"><path :d="ICONS.home" /></svg>{{ segment.label }}</button>
         </template>
       </nav>
       <button type="button" class="vfb-button vfb-hidden-toggle" :aria-pressed="showHidden ? 'true' : 'false'" aria-label="Show hidden files" title="Show hidden files" @click="toggleHidden">

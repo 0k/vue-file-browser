@@ -13,6 +13,7 @@
   Colours and sizes are `--vfb-*` variables declared with defaults on
   `.vfb-root`; never hard-code a colour elsewhere (`test/package.test.ts`
   enforces it).
+- The widget draws no box (no border, no radius, transparent background).
 - Teardown releases the ResizeObserver and the host subscription, and
   drops pending load results.
   A load result applies only if no newer source start (path change,

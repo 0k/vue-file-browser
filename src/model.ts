@@ -63,15 +63,15 @@ export function formatSize(bytes: number): string {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** GNOME Files style dates: time today, "Yesterday", day and month this year, full date otherwise. */
+/** GNOME Files style dates: "Today 14:32", "Yesterday 09:05", otherwise "12 Oct 2026". */
 export function formatModified(seconds: number, now: Date = new Date()): string {
   const d = new Date(seconds * 1000);
   const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (sameDay(d, now)) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (sameDay(d, now)) return `Today ${time}`;
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (sameDay(d, yesterday)) return "Yesterday";
-  const dayMonth = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-  return d.getFullYear() === now.getFullYear() ? dayMonth : `${dayMonth} ${d.getFullYear()}`;
+  if (sameDay(d, yesterday)) return `Yesterday ${time}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 export function joinPath(dir: string, name: string): string {

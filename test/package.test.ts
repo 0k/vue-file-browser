@@ -13,10 +13,16 @@ it("stylesheet contract", () => {
   expect(rest.join("").match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g)).toBeNull();
   expect(root).toBeDefined();
   expect(css.match(/--vfb-[a-z-]+(?=\s*:)/g)?.filter((s, i, all) => all.indexOf(s) === i).sort()).toEqual([
-    "--vfb-accent", "--vfb-accent-fg", "--vfb-bg", "--vfb-border", "--vfb-dim-fg", "--vfb-error-fg", "--vfb-fg",
-    "--vfb-file-icon", "--vfb-folder-icon", "--vfb-font-size", "--vfb-header-bg", "--vfb-hover-bg", "--vfb-radius", "--vfb-row-height",
-    "--vfb-selected-bg",
+    "--vfb-accent", "--vfb-accent-fg", "--vfb-bg", "--vfb-border", "--vfb-column-gap", "--vfb-dim-fg", "--vfb-error-fg", "--vfb-fg",
+    "--vfb-file-icon", "--vfb-folder-icon", "--vfb-font-family", "--vfb-font-size", "--vfb-gutter", "--vfb-hover-bg", "--vfb-row-height", "--vfb-row-inset",
+    "--vfb-selected-bg", "--vfb-sticky-bg",
   ]);
+});
+it("no box around the widget", () => {
+  const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+  const root = css.slice(0, css.indexOf("}"));
+  expect([/(^|[\s;{])border\s*:/.test(root), /border-radius/.test(root)]).toEqual([false, false]);
+  expect(root).toContain('--vfb-font-family: "Ubuntu Sans Mono", "Ubuntu Mono", monospace;');
 });
 it("package contract", () => {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -44,6 +50,10 @@ it("pins the approved toolchain updates", () => {
   const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
   expect([pkg.devDependencies.vitest, pkg.devDependencies.vite, pkg.devDependencies.vue]).toEqual(["2.1.9", "5.4.21", "3.5.44"]);
   expect(lock.packages[""].devDependencies).toEqual(pkg.devDependencies);
+});
+it("documents the home segment's house icon", () => {
+  const readme = readFileSync(new URL("../README.org", import.meta.url), "utf8");
+  expect(readme).toContain("The home segment of the path bar shows a house icon.");
 });
 it("documents that the host applies requests to show hidden files", () => {
   const readme = readFileSync(new URL("../README.org", import.meta.url), "utf8").replace(/\s+/g, " ");

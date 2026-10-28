@@ -44,7 +44,7 @@ it("loads the path on mount and renders sorted rows", async () => {
   const w = view({ load });
   await flushPromises();
   expect(load.mock.calls).toEqual([["/home/me/w"]]);
-  expect(rows(w)).toEqual([["src", "", "11:00"], ["b.txt", "2.0 kB", "11:00"], ["other", "", "11:00"]]);
+  expect(rows(w)).toEqual([["src", "", "Today 11:00"], ["b.txt", "2.0 kB", "Today 11:00"], ["other", "", "Today 11:00"]]);
   expect(w.get(".vfb-list").attributes("aria-label")).toBe("w");
 });
 it("loads again when the path changes and ignores stale results", async () => {
@@ -248,7 +248,7 @@ it("Up opens the parent and is disabled at the root", async () => {
 it("path bar collapses home and opens ancestors", async () => {
   const w = view({ path: "/home/me/w/sub", home: "/home/me", homeLabel: "Home", load: async (p: string) => listing(p, []) });
   await flushPromises();
-  expect(w.findAll(".vfb-crumb").map(c => [c.text(), c.element.tagName])).toEqual([["Home", "BUTTON"], ["w", "BUTTON"], ["sub", "SPAN"]]);
+  expect(w.findAll(".vfb-crumb").map(c => [c.text(), c.element.tagName, c.find(".vfb-crumb-home").exists()])).toEqual([["Home", "BUTTON", true], ["w", "BUTTON", false], ["sub", "SPAN", false]]);
   await w.findAll(".vfb-crumb")[1]!.trigger("click");
   expect(w.emitted("open-folder")).toEqual([["/home/me/w"]]);
 });

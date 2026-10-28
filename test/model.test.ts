@@ -16,7 +16,7 @@ it("formatSize uses SI units like GNOME", () => {
   expect([0, 1, 512, 999, 1000, 4096, 12_300_000, 1_000_000_000, 2_500_000_000_000].map(formatSize))
     .toEqual(["0 bytes", "1 byte", "512 bytes", "999 bytes", "1.0 kB", "4.1 kB", "12.3 MB", "1.0 GB", "2.5 TB"]);
 });
-it("formatModified follows GNOME's relative forms", () => {
+it("formatModified follows GNOME Files' forms", () => {
   const now = new Date(2026, 9, 18, 19, 0, 0);
   const s = (d: Date) => Math.floor(d.getTime() / 1000);
   expect([
@@ -26,7 +26,7 @@ it("formatModified follows GNOME's relative forms", () => {
     formatModified(s(new Date(2026, 9, 12, 8, 0)), now),
     formatModified(s(new Date(2026, 0, 2, 8, 0)), now),
     formatModified(s(new Date(2024, 9, 12, 8, 0)), now),
-  ]).toEqual(["14:32", "00:05", "Yesterday", "12 Oct", "2 Jan", "12 Oct 2024"]);
+  ]).toEqual(["Today 14:32", "Today 00:05", "Yesterday 23:59", "12 Oct 2026", "2 Jan 2026", "12 Oct 2024"]);
 });
 it("joinPath", () => {
   expect([joinPath("/", "a"), joinPath("/a", "b"), joinPath("/a/", "b")]).toEqual(["/a", "/a/b", "/a/b"]);

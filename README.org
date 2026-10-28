@@ -3,11 +3,12 @@
 * Purpose and delivery
 
 A reusable Vue 3 folder browser with the look of GNOME Files' list view: a
-header bar with an Up button, a clickable path bar, a hidden-files toggle
-then one row per entry with its icon, name, size and
-modification date. It fills whatever box the host gives it, from a full
-page to a fixed-height panel. Fed by a live host source, it follows folder
-changes without a Reload button and without fetching anything itself.
+slim header bar with an Up button, a clickable path bar and a hidden-files
+toggle, then compact rows with each entry's icon, name, size and
+modification date. It draws no box of its own and fills whatever space the
+host gives it, from a full page to a fixed-height panel. Fed by a live host
+source, it follows folder changes without a Reload button and without
+fetching anything itself.
 
 The package owns sorting, formatting, rendering, loading states and
 selection. Hosts own fetching, change notification, authorisation, routing
@@ -68,10 +69,12 @@ const FileBrowser: Component;
 ~sortEntries~ puts folders first, then sorts by name in natural,
 case-insensitive order (~b2~ before ~b10~), breaking ties on the raw name.
 ~formatSize~ uses decimal units like GNOME: ~1 byte~, ~512 bytes~,
-~4.1 kB~, ~12.3 MB~. ~formatModified~ gives the time for today,
-~Yesterday~, ~12 Oct~ within the year and ~12 Oct 2024~ otherwise.
+~4.1 kB~, ~12.3 MB~. ~formatModified~ gives ~Today 14:32~,
+~Yesterday 09:05~, otherwise the full date ~12 Oct 2026~, as GNOME Files does.
 ~pathSegments~ starts with a ~~~ segment for a path at or under ~home~,
 else with ~/~.
+
+The home segment of the path bar shows a house icon.
 
 * Component
 
@@ -116,8 +119,11 @@ There is no Reload button: changes arrive through ~feed~.
 * Styling
 
 Every rule hangs from ~.vfb-root~. Override these variables on it (defaults
-follow the libadwaita dark palette): ~--vfb-bg~, ~--vfb-header-bg~,
-~--vfb-fg~, ~--vfb-dim-fg~, ~--vfb-border~, ~--vfb-hover-bg~,
-~--vfb-accent~, ~--vfb-accent-fg~, ~--vfb-selected-bg~,
-~--vfb-folder-icon~, ~--vfb-file-icon~, ~--vfb-error-fg~, ~--vfb-radius~,
-~--vfb-row-height~, ~--vfb-font-size~.
+follow the libadwaita dark palette; the widget draws no border and its own
+background is transparent): ~--vfb-bg~, ~--vfb-sticky-bg~ (behind the
+sticky column header: set it to the page colour), ~--vfb-fg~,
+~--vfb-dim-fg~, ~--vfb-border~, ~--vfb-hover-bg~, ~--vfb-accent~,
+~--vfb-accent-fg~, ~--vfb-selected-bg~, ~--vfb-folder-icon~,
+~--vfb-file-icon~, ~--vfb-error-fg~, ~--vfb-font-family~ (default ~"Ubuntu
+Sans Mono", "Ubuntu Mono", monospace~), ~--vfb-font-size~ (12.5 px),
+~--vfb-row-height~ (24 px), ~--vfb-gutter~, ~--vfb-column-gap~.
