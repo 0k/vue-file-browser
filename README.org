@@ -1,6 +1,6 @@
 #+TITLE: @0k/vue-file-browser
 
-* Purpose and delivery
+* Purpose
 
 A reusable Vue 3 folder browser with the look of GNOME Files' list view: a
 slim header bar with an Up button, a clickable path bar and a hidden-files
@@ -24,12 +24,14 @@ host-owned values. Hosts may also persist these values.
 
 MIT licensed; Vue ~^3.5.0~ is a peer; there are no runtime dependencies.
 
-Run ~npm install~, ~npm run check~, then ~npm run pack~. The last command
-builds and produces ~artifacts/0k-vue-file-browser-0.1.0.tgz~ without
-publishing. A consumer copies that artifact into its ~frontend/vendor/~ and
-installs it as ~file:vendor/0k-vue-file-browser-0.1.0.tgz~ with its normal
-npm workflow. This project never edits or vendors into consumer
-repositories.
+* Install
+
+The type declarations require TypeScript ~moduleResolution: "bundler"~,
+the standard setting for Vite/Vue projects.
+
+#+begin_src sh
+npm install @0k/vue-file-browser
+#+end_src
 
 #+begin_src typescript
 import { FileBrowser } from '@0k/vue-file-browser';

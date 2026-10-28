@@ -23,5 +23,13 @@
 - Never fail silently: a rejected load shows its message verbatim with a
   Retry button.
 - Write specification tests first.
-- Verify with `npm run check`; produce tarballs with `npm run pack`.
-- Never edit consumer repositories or vendor artifacts into them from here.
+- Verify with `npm run check`.
+
+## Delivery
+
+Published to npm as `@0k/vue-file-browser` with `pkg`, from a git tag;
+`package.json` keeps `%%version%%`, substituted from the tag, and
+`README.md` is generated from `README.org` at release (never commit it).
+Consumers depend on the exact npm release.  To try an unreleased change in
+a consumer, link the checkout there (`npm link`) without committing it;
+never bump the version for that.

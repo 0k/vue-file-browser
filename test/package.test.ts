@@ -59,11 +59,17 @@ it("cleans bundles before emitting declarations, with no emission during ordinar
   expect(json("tsconfig.build.json").compilerOptions.noEmit).toBe(false);
   expect(readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8")).not.toContain("emptyOutDir: false");
 });
-it("pins the approved toolchain updates", () => {
+it("pins the approved toolchain updates and preserves release version placeholders", () => {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
   expect([pkg.devDependencies.vitest, pkg.devDependencies.vite, pkg.devDependencies.vue]).toEqual(["2.1.9", "5.4.21", "3.5.44"]);
+  expect([pkg.version, lock.version, lock.packages[""].version]).toEqual(["%%version%%", "%%version%%", "%%version%%"]);
   expect(lock.packages[""].devDependencies).toEqual(pkg.devDependencies);
+});
+it("documents the declaration module resolution requirement in Install", () => {
+  const readme = readFileSync(new URL("../README.org", import.meta.url), "utf8");
+  const install = readme.split("* Install")[1]?.split("* Exact exports")[0];
+  expect(install).toContain('moduleResolution: "bundler"');
 });
 it("documents the home segment's house icon", () => {
   const readme = readFileSync(new URL("../README.org", import.meta.url), "utf8");

@@ -1,12 +1,17 @@
 {
   "name": "@0k/vue-file-browser",
-  "version": "0.1.0",
-  "private": true,
+  "version": "%%version%%",
   "description": "Host-fed Vue 3 folder browser in the style of GNOME Files",
+  "keywords": ["vue", "vue3", "file-browser", "folder", "gnome", "component"],
+  "author": "Valentin Lab <valentin.lab@kalysto.org>",
   "license": "MIT",
+  "repository": {"type": "git", "url": "git+https://github.com/0k/vue-file-browser.git"},
+  "homepage": "https://github.com/0k/vue-file-browser",
+  "bugs": {"url": "https://github.com/0k/vue-file-browser/issues"},
+  "publishConfig": {"access": "public"},
   "type": "module",
   "sideEffects": ["*.css"],
-  "files": ["dist", "README.org", "LICENSE"],
+  "files": ["dist", "README.md", "LICENSE"],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,9 +23,9 @@
     "test": "vitest run --bail 1",
     "typecheck": "vue-tsc --noEmit",
     "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/finish-build.mjs",
+    "prepare": "npm run build",
     "check:chrome91": "node scripts/check-chrome91.mjs",
-    "check": "npm run test && npm run typecheck && npm run build && npm run check:chrome91",
-    "pack": "node scripts/pack.mjs"
+    "check": "npm run test && npm run typecheck && npm run build && npm run check:chrome91"
   },
   "peerDependencies": {"vue": "^3.5.0"},
   "devDependencies": {

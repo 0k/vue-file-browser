@@ -1,0 +1,6 @@
+NAME="@0k/vue-file-browser"
+DESCRIPTION="Host-fed Vue 3 folder browser in the style of GNOME Files"
+EMAIL="valentin.lab@kalysto.org"
+AUTHOR="Valentin Lab"
+AUTHOR_EMAIL="$AUTHOR <$EMAIL>"
+FILES="package.json package-lock.json"
